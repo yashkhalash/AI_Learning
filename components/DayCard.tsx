@@ -1,10 +1,13 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Check, ChevronDown, StickyNote } from "lucide-react";
+import { Check, ChevronDown, StickyNote, Sparkles, Loader2, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { RoadmapDay } from "@/lib/roadmap";
 import { DayStatus } from "@/lib/store";
+
+type Resource = { title: string; url: string; type: string };
+type LearnContent = { explanation: string; resources: Resource[] };
 
 export default function DayCard({
   day,
@@ -18,7 +21,30 @@ export default function DayCard({
   onNoteChange: (day: number, note: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [learn, setLearn] = useState<LearnContent | null>(null);
+  const [learnLoading, setLearnLoading] = useState(false);
+  const [learnError, setLearnError] = useState<string | null>(null);
   const completed = !!status?.completed;
+
+  async function fetchLearnContent() {
+    if (learn || learnLoading) return;
+    setLearnLoading(true);
+    setLearnError(null);
+    try {
+      const res = await fetch("/api/learn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ day: day.day }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to load learning content");
+      setLearn(json);
+    } catch (e: any) {
+      setLearnError(e.message || "Something went wrong");
+    } finally {
+      setLearnLoading(false);
+    }
+  }
 
   return (
     <motion.div
@@ -64,7 +90,11 @@ export default function DayCard({
         </div>
 
         <button
-          onClick={() => setExpanded(!expanded)}
+          onClick={() => {
+            const next = !expanded;
+            setExpanded(next);
+            if (next) fetchLearnContent();
+          }}
           className="shrink-0 w-7 h-7 flex items-center justify-center text-slate-400 hover:text-white"
         >
           <motion.span animate={{ rotate: expanded ? 180 : 0 }}>
@@ -86,6 +116,53 @@ export default function DayCard({
               {day.seniorNote}
             </p>
           </div>
+
+          <div className="bg-panel2/60 rounded-xl p-3 mb-3">
+            <div className="flex items-center gap-1.5 mb-2">
+              <Sparkles size={13} className="text-accent2" />
+              <span className="text-xs font-semibold text-accent2">Learn this topic</span>
+            </div>
+
+            {learnLoading && (
+              <div className="flex items-center gap-2 text-xs text-slate-400 py-2">
+                <Loader2 size={14} className="animate-spin" />
+                Fetching explanation & resources...
+              </div>
+            )}
+
+            {learnError && (
+              <div className="text-xs text-red-400 flex items-center justify-between gap-2">
+                <span>{learnError}</span>
+                <button onClick={fetchLearnContent} className="underline shrink-0 hover:text-red-300">
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {learn && (
+              <div className="space-y-3">
+                <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line">{learn.explanation}</p>
+                {learn.resources.length > 0 && (
+                  <div className="space-y-1.5">
+                    {learn.resources.map((r, i) => (
+                      <a
+                        key={i}
+                        href={r.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-xs text-slate-300 hover:text-accent2 bg-panel/60 rounded-lg px-2.5 py-1.5 transition-colors"
+                      >
+                        <ExternalLink size={12} className="shrink-0 text-slate-500" />
+                        <span className="truncate flex-1">{r.title}</span>
+                        <span className="shrink-0 text-[10px] uppercase text-slate-500">{r.type}</span>
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="flex items-start gap-2">
             <StickyNote size={14} className="text-slate-500 mt-2 shrink-0" />
             <textarea

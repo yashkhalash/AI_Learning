@@ -2,8 +2,14 @@ import fs from "fs";
 import path from "path";
 import { ROADMAP, TOTAL_DAYS } from "./roadmap";
 
-const DATA_DIR = path.join(process.cwd(), "data");
+// On Vercel (and most serverless platforms) the deployment bundle is read-only —
+// only /tmp is writable, and it's ephemeral per-instance. Writing under process.cwd()
+// there throws EROFS, which is what was causing the 500 on GET /api/progress
+// (readData() heals missing days and immediately tries to persist them).
+const isServerless = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
+const DATA_DIR = isServerless ? path.join("/tmp", "ai-roadmap-data") : path.join(process.cwd(), "data");
 const DATA_FILE = path.join(DATA_DIR, "progress.json");
+const SEED_FILE = path.join(process.cwd(), "data", "progress.json");
 
 export type DayStatus = {
   day: number;
@@ -57,36 +63,57 @@ function defaultData(): ProgressData {
 function ensureFile() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(DATA_FILE)) {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(defaultData(), null, 2));
+    // Seed from the bundled data/progress.json when it exists (e.g. first cold start
+    // on a serverless instance), otherwise fall back to a fresh default.
+    let seed = defaultData();
+    if (SEED_FILE !== DATA_FILE && fs.existsSync(SEED_FILE)) {
+      try {
+        seed = JSON.parse(fs.readFileSync(SEED_FILE, "utf-8"));
+      } catch {
+        // ignore malformed seed, use default
+      }
+    }
+    fs.writeFileSync(DATA_FILE, JSON.stringify(seed, null, 2));
   }
 }
 
 export function readData(): ProgressData {
-  ensureFile();
-  const raw = fs.readFileSync(DATA_FILE, "utf-8");
-  const parsed = JSON.parse(raw) as ProgressData;
+  try {
+    ensureFile();
+    const raw = fs.readFileSync(DATA_FILE, "utf-8");
+    const parsed = JSON.parse(raw) as ProgressData;
 
-  // Heal data if roadmap length ever changes / missing days
-  let changed = false;
-  for (const d of ROADMAP) {
-    if (!parsed.days[d.day]) {
-      parsed.days[d.day] = {
-        day: d.day,
-        completed: false,
-        completedAt: null,
-        scheduledDate: addDays(parsed.startDate, d.day - 1),
-        note: "",
-      };
-      changed = true;
+    // Heal data if roadmap length ever changes / missing days
+    let changed = false;
+    for (const d of ROADMAP) {
+      if (!parsed.days[d.day]) {
+        parsed.days[d.day] = {
+          day: d.day,
+          completed: false,
+          completedAt: null,
+          scheduledDate: addDays(parsed.startDate, d.day - 1),
+          note: "",
+        };
+        changed = true;
+      }
     }
+    if (changed) writeData(parsed);
+    return parsed;
+  } catch (e) {
+    // Never let a filesystem hiccup (e.g. read-only fs) 500 the request —
+    // fall back to an in-memory default so the app stays usable.
+    console.error("readData failed, falling back to in-memory defaults:", (e as Error).message);
+    return defaultData();
   }
-  if (changed) writeData(parsed);
-  return parsed;
 }
 
 export function writeData(data: ProgressData) {
-  ensureFile();
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  try {
+    ensureFile();
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  } catch (e) {
+    console.error("writeData failed (changes won't persist):", (e as Error).message);
+  }
 }
 
 export function setDayCompletion(day: number, completed: boolean) {

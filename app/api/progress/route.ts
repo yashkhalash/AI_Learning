@@ -4,9 +4,14 @@ import { sendCompletionEmail } from "@/lib/mailer";
 import { ROADMAP } from "@/lib/roadmap";
 
 export async function GET() {
-  const data = readData();
-  const stats = getStats(data);
-  return NextResponse.json({ data, stats, roadmap: ROADMAP });
+  try {
+    const data = readData();
+    const stats = getStats(data);
+    return NextResponse.json({ data, stats, roadmap: ROADMAP });
+  } catch (e) {
+    console.error("GET /api/progress failed:", e);
+    return NextResponse.json({ error: "Failed to load progress" }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {

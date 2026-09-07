@@ -1,4 +1,4 @@
-/** @type {import('tailwindcss').Config} */
+                                                                                                  /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
@@ -13,7 +13,7 @@ module.exports = {
         accent: "#7c5cff",
         accent2: "#22d3ee",
         good: "#34d399",
-        warn: "#fbbf24",
+        warn: "#fbbf24",                                                                                                              
       },
       boxShadow: {
         glow: "0 0 40px rgba(124, 92, 255, 0.25)",
