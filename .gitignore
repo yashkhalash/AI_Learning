@@ -6,3 +6,5 @@ out
 data/progress.json
 *.log
 .DS_Store
+
+.env.txt
