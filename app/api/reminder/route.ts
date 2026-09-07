@@ -26,27 +26,27 @@ async function handle(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const data = readData();
-  if (!data.reminderEmail) {
-    return NextResponse.json({ skipped: true, reason: "No reminder email configured" });
-  }
-
-  const stats = getStats(data);
-  const todayISO = new Date().toISOString().slice(0, 10);
-
-  const todaysDays = ROADMAP.filter((d) => {
-    const entry = data.days[d.day];
-    return entry && entry.scheduledDate === todayISO && !entry.completed;
-  });
-
-  const pendingOverdue = ROADMAP.filter((d) => {
-    const entry = data.days[d.day];
-    return entry && entry.scheduledDate && entry.scheduledDate < todayISO && !entry.completed;
-  });
-
-  const daysToShow = [...todaysDays, ...pendingOverdue].slice(0, 5);
-
   try {
+    const data = readData();
+    if (!data.reminderEmail) {
+      return NextResponse.json({ skipped: true, reason: "No reminder email configured" });
+    }
+
+    const stats = getStats(data);
+    const todayISO = new Date().toISOString().slice(0, 10);
+
+    const todaysDays = ROADMAP.filter((d) => {
+      const entry = data.days[d.day];
+      return entry && entry.scheduledDate === todayISO && !entry.completed;
+    });
+
+    const pendingOverdue = ROADMAP.filter((d) => {
+      const entry = data.days[d.day];
+      return entry && entry.scheduledDate && entry.scheduledDate < todayISO && !entry.completed;
+    });
+
+    const daysToShow = [...todaysDays, ...pendingOverdue].slice(0, 5);
+
     await sendDailyReminderEmail({
       to: data.reminderEmail,
       todaysDays: daysToShow,
@@ -59,6 +59,7 @@ async function handle(req: NextRequest) {
     markReminderSentNow();
     return NextResponse.json({ ok: true, sentTo: data.reminderEmail, days: daysToShow.map((d) => d.day) });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
+    console.error("GET/POST /api/reminder failed:", e);
+    return NextResponse.json({ ok: false, error: e.message || "Failed to send reminder" }, { status: 500 });
   }
 }
