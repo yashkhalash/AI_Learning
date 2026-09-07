@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Flame, Trophy, ListChecks, Mail } from "lucide-react";
+import { Flame, Trophy, ListChecks, Mail, Gauge } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useProgress } from "@/lib/useProgress";
 import { WEEKS } from "@/lib/roadmap";
@@ -45,6 +45,22 @@ export default function DashboardPage() {
           <StatCard icon={<ListChecks className="text-good" size={20} />} label="Days Remaining" value={`${stats.totalDays - stats.completedCount}`} />
         </div>
       </motion.div>
+
+      {stats.paceDays !== 1 && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="glass rounded-2xl p-4 flex items-center gap-3 border border-accent2/20"
+        >
+          <Gauge size={18} className="text-accent2 shrink-0" />
+          <p className="text-sm text-slate-300">
+            Custom pace: <span className="text-accent2 font-semibold">{stats.paceDays} day{stats.paceDays === 1 ? "" : "s"}/topic</span> ·
+            spans {stats.totalDurationDays} calendar days · projected finish{" "}
+            <span className="text-accent2 font-semibold">{stats.projectedEndDate}</span>. Adjust in{" "}
+            <a href="/settings" className="underline">Settings</a>.
+          </p>
+        </motion.div>
+      )}
 
       {!data.reminderEmail && (
         <motion.div

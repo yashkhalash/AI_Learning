@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readData, updateSettings } from "@/lib/store";
+import { readData, updateSettings, getStats } from "@/lib/store";
 import { sendTestEmail } from "@/lib/mailer";
 
 export async function GET() {
   try {
     const data = readData();
+    const stats = getStats(data);
     return NextResponse.json({
       reminderEmail: data.reminderEmail,
       reminderTime: data.reminderTime,
       startDate: data.startDate,
+      paceDays: data.paceDays,
       lastReminderSentAt: data.lastReminderSentAt,
+      totalDays: stats.totalDays,
+      totalDurationDays: stats.totalDurationDays,
+      projectedEndDate: stats.projectedEndDate,
     });
   } catch (e) {
     console.error("GET /api/settings failed:", e);
@@ -34,9 +39,16 @@ export async function POST(req: NextRequest) {
       reminderEmail: body.reminderEmail,
       reminderTime: body.reminderTime,
       startDate: body.startDate,
+      paceDays: body.paceDays !== undefined ? Number(body.paceDays) : undefined,
     });
+    const stats = getStats(data);
 
-    return NextResponse.json({ ok: true, data });
+    return NextResponse.json({
+      ok: true,
+      data,
+      totalDurationDays: stats.totalDurationDays,
+      projectedEndDate: stats.projectedEndDate,
+    });
   } catch (e) {
     console.error("POST /api/settings failed:", e);
     return NextResponse.json({ error: "Failed to update settings" }, { status: 500 });

@@ -2,16 +2,31 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Mail, Send, Save, Clock, CalendarClock } from "lucide-react";
+import { Mail, Send, Save, Clock, CalendarClock, Gauge } from "lucide-react";
+import { useToast } from "@/components/Toast";
 
 export default function SettingsPage() {
+  const toast = useToast();
   const [email, setEmail] = useState("");
   const [time, setTime] = useState("08:00");
   const [startDate, setStartDate] = useState("");
+  const [paceDays, setPaceDays] = useState(1);
+  const [totalDays, setTotalDays] = useState(0);
+  const [totalDurationDays, setTotalDurationDays] = useState(0);
+  const [projectedEndDate, setProjectedEndDate] = useState("");
   const [lastSent, setLastSent] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Live preview of duration/end-date as the user edits pace/start date, before saving.
+  const previewSpanDays = totalDays ? Math.round((totalDays - 1) * paceDays) + 1 : totalDurationDays;
+  const previewEndDate = (() => {
+    if (!startDate || !totalDays) return projectedEndDate;
+    const d = new Date(startDate + "T00:00:00");
+    d.setDate(d.getDate() + Math.round((totalDays - 1) * paceDays));
+    return d.toISOString().slice(0, 10);
+  })();
 
   useEffect(() => {
     fetch("/api/settings")
@@ -20,6 +35,10 @@ export default function SettingsPage() {
         setEmail(d.reminderEmail || "");
         setTime(d.reminderTime || "08:00");
         setStartDate(d.startDate || "");
+        setPaceDays(d.paceDays || 1);
+        setTotalDays(d.totalDays || 0);
+        setTotalDurationDays(d.totalDurationDays || 0);
+        setProjectedEndDate(d.projectedEndDate || "");
         setLastSent(d.lastReminderSentAt);
       });
   }, []);
@@ -30,10 +49,19 @@ export default function SettingsPage() {
     const res = await fetch("/api/settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reminderEmail: email, reminderTime: time, startDate }),
+      body: JSON.stringify({ reminderEmail: email, reminderTime: time, startDate, paceDays }),
     });
+    const json = await res.json().catch(() => null);
     setSaving(false);
-    setStatus(res.ok ? "Saved ✅" : "Failed to save");
+    if (res.ok) {
+      setTotalDurationDays(json?.totalDurationDays || totalDurationDays);
+      setProjectedEndDate(json?.projectedEndDate || projectedEndDate);
+      setStatus("Saved ✅");
+      toast.success("Settings saved — calendar re-synced to your new pace");
+    } else {
+      setStatus("Failed to save");
+      toast.error(json?.error || "Failed to save settings");
+    }
   }
 
   async function sendTest() {
@@ -47,6 +75,8 @@ export default function SettingsPage() {
     const json = await res.json();
     setSending(false);
     setStatus(json.ok ? "Test email sent ✅ check your inbox" : `Failed: ${json.error}`);
+    if (json.ok) toast.success("Test email sent — check your inbox");
+    else toast.error(json.error || "Failed to send test email");
   }
 
   return (
@@ -95,7 +125,55 @@ export default function SettingsPage() {
             className="bg-panel2 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:ring-1 focus:ring-accent"
           />
           <p className="text-[11px] text-slate-500 mt-1">
-            Changing this only affects newly-generated schedules going forward; use the Calendar page to move individual days.
+            Saving a new start date (or pace, below) re-lays out the whole calendar from that date — it overwrites any
+            individual reschedules you made on the Calendar page. Use the Calendar page afterwards for one-off tweaks.
+          </p>
+        </div>
+
+        <div>
+          <label className="flex items-center gap-2 text-sm text-slate-300 mb-1.5">
+            <Gauge size={14} /> Pace — days per topic
+          </label>
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              min={0.5}
+              step={0.5}
+              value={paceDays}
+              onChange={(e) => setPaceDays(Math.max(0.5, Number(e.target.value) || 1))}
+              className="w-28 bg-panel2 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:ring-1 focus:ring-accent"
+            />
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { label: "Daily", value: 1 },
+                { label: "Every 2 days", value: 2 },
+                { label: "Twice/week", value: 3.5 },
+                { label: "Weekly", value: 7 },
+              ].map((p) => (
+                <button
+                  key={p.value}
+                  onClick={() => setPaceDays(p.value)}
+                  className={`text-[11px] px-2.5 py-1 rounded-full transition-colors ${
+                    paceDays === p.value ? "bg-gradient-to-r from-accent to-accent2 text-bg font-semibold" : "bg-panel2 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <p className="text-[11px] text-slate-500 mt-1.5">
+            Defaults to 1 topic/day, but the {totalDays || 30}-day curriculum doesn't have to run in {totalDays || 30}{" "}
+            calendar days — stretch it out (e.g. 2 days/topic) or compress it. At{" "}
+            <span className="text-accent2 font-medium">{paceDays}</span> day{paceDays === 1 ? "" : "s"}/topic you'll
+            span <span className="text-accent2 font-medium">{previewSpanDays}</span> calendar days
+            {previewEndDate && (
+              <>
+                {" "}
+                — finishing around <span className="text-accent2 font-medium">{previewEndDate}</span>
+              </>
+            )}
+            . Save to apply.
           </p>
         </div>
 

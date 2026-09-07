@@ -21,6 +21,7 @@ export type DayStatus = {
 
 export type ProgressData = {
   startDate: string; // ISO date roadmap started
+  paceDays: number; // calendar days between consecutive roadmap days (1 = one topic/day, 2 = one topic every 2 days, ...)
   days: Record<number, DayStatus>;
   history: { day: number; action: "completed" | "uncompleted"; at: string }[];
   reminderEmail: string;
@@ -33,25 +34,34 @@ function todayISO(): string {
 }
 
 function addDays(iso: string, n: number): string {
-  const d = new Date(iso + "T00:00:00");
-  d.setDate(d.getDate() + n);
+  // Do the arithmetic in UTC end-to-end — mixing a local-time constructor with
+  // toISOString() (UTC) shifted every date back a day on servers east of UTC.
+  const d = new Date(iso + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
+}
+
+// Where roadmap day `day` (1-indexed) lands on the calendar given a start date and pace.
+function scheduleFor(startDate: string, day: number, paceDays: number): string {
+  return addDays(startDate, Math.round((day - 1) * paceDays));
 }
 
 function defaultData(): ProgressData {
   const startDate = todayISO();
+  const paceDays = 1;
   const days: Record<number, DayStatus> = {};
   for (const d of ROADMAP) {
     days[d.day] = {
       day: d.day,
       completed: false,
       completedAt: null,
-      scheduledDate: addDays(startDate, d.day - 1),
+      scheduledDate: scheduleFor(startDate, d.day, paceDays),
       note: "",
     };
   }
   return {
     startDate,
+    paceDays,
     days,
     history: [],
     reminderEmail: process.env.REMINDER_TO_EMAIL || "",
@@ -83,15 +93,20 @@ export function readData(): ProgressData {
     const raw = fs.readFileSync(DATA_FILE, "utf-8");
     const parsed = JSON.parse(raw) as ProgressData;
 
-    // Heal data if roadmap length ever changes / missing days
+    // Heal data if roadmap length ever changes / missing days, or if this is a
+    // pre-custom-pace data file missing the new paceDays field.
     let changed = false;
+    if (!parsed.paceDays || parsed.paceDays < 1) {
+      parsed.paceDays = 1;
+      changed = true;
+    }
     for (const d of ROADMAP) {
       if (!parsed.days[d.day]) {
         parsed.days[d.day] = {
           day: d.day,
           completed: false,
           completedAt: null,
-          scheduledDate: addDays(parsed.startDate, d.day - 1),
+          scheduledDate: scheduleFor(parsed.startDate, d.day, parsed.paceDays),
           note: "",
         };
         changed = true;
@@ -150,9 +165,29 @@ export function setDaySchedule(day: number, scheduledDate: string) {
   return data;
 }
 
-export function updateSettings(partial: Partial<Pick<ProgressData, "reminderEmail" | "reminderTime" | "startDate">>) {
+export function updateSettings(
+  partial: Partial<Pick<ProgressData, "reminderEmail" | "reminderTime" | "startDate" | "paceDays">>
+) {
   const data = readData();
+  const paceOrStartChanged =
+    (partial.startDate !== undefined && partial.startDate !== data.startDate) ||
+    (partial.paceDays !== undefined && partial.paceDays !== data.paceDays);
+
   Object.assign(data, partial);
+  if (partial.paceDays !== undefined) {
+    data.paceDays = Math.max(0.5, partial.paceDays);
+  }
+
+  // Re-lay the whole calendar out from the (possibly new) start date / pace.
+  // This intentionally overwrites any individual reschedules made from the Calendar
+  // page — customizing the overall pace is meant to reset the schedule to match it.
+  if (paceOrStartChanged) {
+    for (const d of ROADMAP) {
+      const entry = data.days[d.day];
+      if (entry) entry.scheduledDate = scheduleFor(data.startDate, d.day, data.paceDays);
+    }
+  }
+
   writeData(data);
   return data;
 }
@@ -181,12 +216,20 @@ export function getStats(data: ProgressData) {
 
   const currentStreak = computeStreak(data);
 
+  // Total calendar days the roadmap spans end-to-end at the current pace, and the
+  // ISO date the last day lands on — used by Settings to show "finishes on ...".
+  const totalDurationDays = Math.round((TOTAL_DAYS - 1) * data.paceDays) + 1;
+  const projectedEndDate = scheduleFor(data.startDate, TOTAL_DAYS, data.paceDays);
+
   return {
     totalDays: TOTAL_DAYS,
     completedCount: completedDays.length,
     overallPercent,
     byWeek,
     currentStreak,
+    paceDays: data.paceDays,
+    totalDurationDays,
+    projectedEndDate,
   };
 }
 

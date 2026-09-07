@@ -3,6 +3,7 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import BackgroundFX from "@/components/BackgroundFX";
 import { ToastProvider } from "@/components/Toast";
+import { ProgressProvider } from "@/components/ProgressProvider";
 
 export const metadata: Metadata = {
   title: "AI Engineer Roadmap Tracker",
@@ -15,10 +16,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen bg-bg bg-grid relative overflow-x-hidden">
         <BackgroundFX />
         <ToastProvider>
-          <div className="relative z-10">
-            <Navbar />
-            <main className="max-w-6xl mx-auto px-4 sm:px-6 pb-24 pt-6">{children}</main>
-          </div>
+          <ProgressProvider>
+            <div className="relative z-10">
+              <Navbar />
+              <main className="max-w-6xl mx-auto px-4 sm:px-6 pb-24 pt-6">{children}</main>
+            </div>
+          </ProgressProvider>
         </ToastProvider>
       </body>
     </html>

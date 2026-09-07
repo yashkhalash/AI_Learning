@@ -25,15 +25,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ push }}>
       {children}
-      <div className="fixed bottom-5 right-5 z-[100] flex flex-col gap-2 items-end pointer-events-none">
+      <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 items-center pointer-events-none">
         <AnimatePresence>
           {toasts.map((t) => (
             <motion.div
               key={t.id}
               layout
-              initial={{ opacity: 0, y: 16, scale: 0.9 }}
+              initial={{ opacity: 0, y: -20, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 40, scale: 0.9, transition: { duration: 0.2 } }}
+              exit={{ opacity: 0, y: -16, scale: 0.9, transition: { duration: 0.2 } }}
               transition={{ type: "spring", stiffness: 320, damping: 26 }}
               className={`pointer-events-auto glass rounded-xl px-4 py-3 flex items-center gap-2.5 shadow-lg border max-w-xs ${
                 t.type === "success" ? "border-good/40" : t.type === "error" ? "border-red-500/40" : "border-accent2/40"
