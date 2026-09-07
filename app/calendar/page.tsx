@@ -2,14 +2,17 @@
 
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, ArrowUpRight } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useProgress } from "@/lib/useProgress";
+import PageLoader from "@/components/PageLoader";
 
 function pad(n: number) {
   return n.toString().padStart(2, "0");
 }
 
 export default function CalendarPage() {
+  const router = useRouter();
   const { data, roadmap, loading, toggleDay, setSchedule } = useProgress();
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
@@ -47,7 +50,7 @@ export default function CalendarPage() {
   });
 
   if (loading || !data) {
-    return <div className="flex items-center justify-center h-[60vh] text-slate-400">Loading calendar...</div>;
+    return <PageLoader label="Loading calendar..." />;
   }
 
   const todayISO = new Date().toISOString().slice(0, 10);
@@ -94,7 +97,8 @@ export default function CalendarPage() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 key={dateStr}
-                onClick={() => setSelectedDate(dateStr)}
+                onClick={() => (days.length === 1 ? router.push(`/day/${days[0]}`) : setSelectedDate(dateStr))}
+                title={days.length > 1 ? "Multiple days scheduled — click to choose" : undefined}
                 className={`relative aspect-square rounded-xl flex flex-col items-center justify-center text-xs font-medium transition-colors
                   ${isSelected ? "ring-2 ring-accent2" : ""}
                   ${allDone ? "bg-good/20 text-good" : someDone ? "bg-warn/20 text-warn" : days.length ? "bg-panel2 text-slate-300" : "bg-panel2/40 text-slate-600"}
@@ -131,14 +135,24 @@ export default function CalendarPage() {
                   const rd = roadmap.find((r) => r.day === dn);
                   const completed = data.days[dn]?.completed;
                   return (
-                    <div key={dn} className="flex items-center justify-between bg-panel2/60 rounded-xl p-3">
-                      <div>
-                        <p className="text-sm font-semibold text-white">Day {dn}: {rd?.topic}</p>
-                        <p className="text-xs text-slate-500">{rd?.miniTask}</p>
+                    <div
+                      key={dn}
+                      onClick={() => router.push(`/day/${dn}`)}
+                      className="flex items-center justify-between bg-panel2/60 hover:bg-panel2 rounded-xl p-3 cursor-pointer transition-colors"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-white truncate">Day {dn}: {rd?.topic}</p>
+                          <p className="text-xs text-slate-500 truncate">{rd?.miniTask}</p>
+                        </div>
+                        <ArrowUpRight size={14} className="text-slate-500 shrink-0" />
                       </div>
                       <button
-                        onClick={() => toggleDay(dn)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-semibold ${
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleDay(dn);
+                        }}
+                        className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold ${
                           completed ? "bg-good text-bg" : "bg-panel border border-slate-600 text-slate-300 hover:border-accent2"
                         }`}
                       >

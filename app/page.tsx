@@ -8,6 +8,7 @@ import { WEEKS } from "@/lib/roadmap";
 import ProgressRing from "@/components/ProgressRing";
 import WeekBar from "@/components/WeekBar";
 import DayCard from "@/components/DayCard";
+import PageLoader from "@/components/PageLoader";
 
 export default function DashboardPage() {
   const { data, stats, roadmap, loading, toggleDay, setNote } = useProgress();
@@ -25,11 +26,7 @@ export default function DashboardPage() {
   }, [roadmap, weekFilter, search]);
 
   if (loading || !data || !stats) {
-    return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <div className="animate-pulse text-slate-400">Loading your roadmap...</div>
-      </div>
-    );
+    return <PageLoader label="Loading your roadmap..." />;
   }
 
   return (

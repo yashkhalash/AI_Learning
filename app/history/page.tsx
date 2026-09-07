@@ -3,12 +3,13 @@
 import { motion } from "framer-motion";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { useProgress } from "@/lib/useProgress";
+import PageLoader from "@/components/PageLoader";
 
 export default function HistoryPage() {
   const { data, roadmap, loading } = useProgress();
 
   if (loading || !data) {
-    return <div className="flex items-center justify-center h-[60vh] text-slate-400">Loading history...</div>;
+    return <PageLoader label="Loading history..." />;
   }
 
   return (
